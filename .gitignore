@@ -3,3 +3,5 @@
 tmp
 /coverage
 Gemfile.lock
+.idea
+.gitignore

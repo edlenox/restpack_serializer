@@ -88,6 +88,7 @@ module RestPack::Serializer::SideLoading
       options = RestPack::Serializer::Options.new(serializer.class)
       options.filters = { association.foreign_key.to_sym => models.map(&:id) }
       options.include_links = false
+      options.page_size=10000
       return serializer.class.page_with_options(options)
     end
 
