@@ -32,13 +32,13 @@ module RestPack
 
     class InvalidInclude < Exception; end
 
-    def as_json(model, context = {})
+    def as_json(model, context = {}, options={})
       return if model.nil?
       if model.kind_of?(Array)
         return model.map { |item| as_json(item, context) }
       end
 
-      @model, @context = model, context
+      @model, @context, @options = model, context, options
 
       data = {}
       if self.class.serializable_attributes.present?
@@ -65,13 +65,15 @@ module RestPack
     end
 
     def add_links(model, data)
+      return if @options[:no_links]
       self.class.associations.each do |association|
         data[:links] ||= {}
         links_value = case
         when association.macro == :belongs_to
           model.send(association.foreign_key).try(:to_s)
         when association.macro.to_s.match(/has_/)
-          model.send(association.name).pluck(:id).map(&:to_s)
+          #model.send(association.name).pluck(:id).map(&:to_s) #this forces extra db queries if the associated models haven't been loaded as includes.
+          model.send(association.name).map{|m| m.id.to_s}
         end
         unless links_value.blank?
           data[:links][association.name.to_sym] = links_value
@@ -91,8 +93,8 @@ module RestPack
         new.as_json(models, context)
       end
 
-      def as_json(model, context = {})
-        new.as_json(model, context)
+      def as_json(model, context = {}, options={})
+        new.as_json(model, context, options)
       end
 
       def serialize(models, context = {})
