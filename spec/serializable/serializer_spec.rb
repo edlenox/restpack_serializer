@@ -15,6 +15,10 @@ describe RestPack::Serializer do
     def self.table_name
       "people"
     end
+
+    def to_param
+      id.to_s
+    end
   end
 
   context "bare bones serializer" do
@@ -36,7 +40,12 @@ describe RestPack::Serializer do
     end
 
     def admin_info
-      { key: "super_secret_sauce" }
+      {
+        "key" => "super_secret_sauce",
+        "array" => [
+          { "name" => "Alex" }
+        ]
+      }
     end
 
     def include_admin_info?
@@ -120,19 +129,51 @@ describe RestPack::Serializer do
 
       it "includes custom attributes if specified" do
         hash = serializer.as_json(person, { is_admin?: true })
-        hash[:admin_info].should == { key: "super_secret_sauce" }
+        hash[:admin_info].should == {
+          key: "super_secret_sauce",
+          array: [
+            name: 'Alex'
+          ]
+        }
       end
     end
 
     context "links" do
-      let(:serializer) { MyApp::SongSerializer.new }
-      it "includes 'links' data" do
-        @album1 = FactoryGirl.create(:album_with_songs, song_count: 11)
-        json = serializer.as_json(@album1.songs.first)
-        json[:links].should == {
-          artist: @album1.artist_id.to_s,
-          album: @album1.id.to_s
-        }
+      context "'belongs to' associations" do
+        let(:serializer) { MyApp::SongSerializer.new }
+
+        it "includes 'links' data for :belongs_to associations" do
+          @album1 = FactoryGirl.create(:album_with_songs, song_count: 11)
+          json = serializer.as_json(@album1.songs.first)
+          json[:links].should == {
+            artist: @album1.artist_id.to_s,
+            album: @album1.id.to_s
+          }
+        end
+      end
+
+      context "with a serializer with has_* associations" do
+        let(:artist_serializer) { MyApp::ArtistSerializer.new }
+        let(:json) { artist_serializer.as_json(artist_factory) }
+        let(:side_load_ids) { artist_has_association.map {|obj| obj.id.to_s } }
+
+        describe "'has_many, through' associations" do
+          let(:artist_factory) { FactoryGirl.create :artist_with_fans }
+          let(:artist_has_association) { artist_factory.fans }
+
+          it "includes 'links' data when there are associated records" do
+            expect(json[:links][:fans]).to match_array(side_load_ids)
+          end
+        end
+
+        describe "'has_and_belongs_to_many' associations" do
+          let(:artist_factory) { FactoryGirl.create :artist_with_stalkers }
+          let(:artist_has_association) { artist_factory.stalkers }
+
+          it "includes 'links' data when there are associated records" do
+            expect(json[:links][:stalkers]).to match_array(side_load_ids)
+          end
+        end
       end
     end
   end
@@ -160,18 +201,32 @@ describe RestPack::Serializer do
   end
 
   describe "#key" do
-    it "returns the correct key" do
-      PersonSerializer.key.should == :people
+    context "with default key" do
+      it "returns the correct key" do
+        PersonSerializer.key.should == :people
+      end
+
+      it "has correct #singular_key" do
+        PersonSerializer.singular_key.should == :person
+      end
+
+      it "has correct #plural_key" do
+        PersonSerializer.plural_key.should == :people
+      end
     end
 
     context "with custom key" do
       class SerializerWithCustomKey
         include RestPack::Serializer
-        self.key = :custom_key
+        self.key = :customers
       end
 
       it "returns the correct key" do
-        SerializerWithCustomKey.key.should == :custom_key
+        SerializerWithCustomKey.key.should == :customers
+      end
+
+      it "has correct #singular_key" do
+        SerializerWithCustomKey.singular_key.should == :customer
       end
     end
   end

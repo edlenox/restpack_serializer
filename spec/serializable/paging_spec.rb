@@ -22,10 +22,12 @@ describe RestPack::Serializer::Paging do
       it "includes valid paging meta data" do
         page[:meta][:songs][:count].should == 18
         page[:meta][:songs][:page_count].should == 2
+        page[:meta][:songs][:first_href].should == '/songs'
         page[:meta][:songs][:previous_page].should == nil
         page[:meta][:songs][:previous_href].should == nil
         page[:meta][:songs][:next_page].should == 2
         page[:meta][:songs][:next_href].should == '/songs?page=2'
+        page[:meta][:songs][:last_href].should == '/songs?page=2'
       end
       it "includes links" do
         page[:links].should == {
@@ -44,6 +46,7 @@ describe RestPack::Serializer::Paging do
       it "includes the custom page size in the page hrefs" do
         page[:meta][:songs][:next_page].should == 2
         page[:meta][:songs][:next_href].should == '/songs?page=2&page_size=3'
+        page[:meta][:songs][:last_href].should == '/songs?page=6&page_size=3'
       end
     end
 
@@ -133,7 +136,7 @@ describe RestPack::Serializer::Paging do
         album_model = MyApp::Album.find(album[:id])
 
         album[:links][:artist].should == album_model.artist_id.to_s
-        album[:links][:songs].should == page[:songs].map { |song| song[:id] }
+        (page[:songs].map { |song| song[:id] } - album[:links][:songs]).empty?.should be_truthy
       end
 
       context "with includes as comma delimited string" do
@@ -176,6 +179,28 @@ describe RestPack::Serializer::Paging do
 
         it "includes the filter in page hrefs" do
           page[:meta][:songs][:next_href].should == "/songs?page=2&album_id=#{@album1.id}"
+        end
+      end
+    end
+
+    context 'when sorting' do
+      context 'with no sorting' do
+        let(:params) { {} }
+
+        it "uses the model's sorting" do
+          page[:songs].first[:id].to_i.should < page[:songs].last[:id].to_i
+        end
+      end
+
+      context 'with descending title sorting' do
+        let(:params) { { sort: '-title' } }
+
+        it 'returns a page with sorted songs' do
+          page[:songs].first[:title].should > page[:songs].last[:title]
+        end
+
+        it 'includes the sorting in page hrefs' do
+          page[:meta][:songs][:next_href].should == '/songs?page=2&sort=-title'
         end
       end
     end

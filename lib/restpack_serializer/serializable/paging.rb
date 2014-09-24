@@ -8,6 +8,7 @@ module RestPack::Serializer::Paging
 
     def page_with_options(options)
       page = options.scope_with_filters.page(options.page).per(options.page_size)
+      page = page.reorder(options.sorting) if options.sorting.any?
 
       result = RestPack::Serializer::Result.new
       result.resources[self.key] = serialize_page(page, options)
@@ -34,18 +35,19 @@ module RestPack::Serializer::Paging
 
     def serialize_meta(page, options)
       meta = {
-        page: options.page,
-        page_size: options.page_size,
-        count: page.total_count,
-        include: options.include
+          page: page.current_page,
+          page_size: page.limit_value,
+          count: page.total_count,
+          include: options.include,
+          page_count: page.total_pages,
+          previous_page: page.prev_page,
+          next_page: page.next_page
       }
 
-      meta[:page_count] = ((page.total_count - 1) / options.page_size) + 1
-      meta[:previous_page] = meta[:page] > 1 ? meta[:page] - 1 : nil
-      meta[:next_page] = meta[:page] < meta[:page_count] ? meta[:page] + 1 : nil
-
+      meta[:first_href] = page_href(1, options)
       meta[:previous_href] = page_href(meta[:previous_page], options)
       meta[:next_href] = page_href(meta[:next_page], options)
+      meta[:last_href] = page_href(meta[:page_count], options)
       meta
     end
 
@@ -58,6 +60,7 @@ module RestPack::Serializer::Paging
       params << "page=#{page}" unless page == 1
       params << "page_size=#{options.page_size}" unless options.default_page_size?
       params << "include=#{options.include.join(',')}" if options.include.any?
+      params << options.sorting_as_url_params if options.sorting.any?
       params << options.filters_as_url_params if options.filters.any?
 
       url += '?' + params.join('&') if params.any?

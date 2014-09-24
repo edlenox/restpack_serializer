@@ -6,6 +6,9 @@ require_relative "serializable/paging"
 require_relative "serializable/resource"
 require_relative "serializable/single"
 require_relative "serializable/side_loading"
+require_relative "serializable/side_load_data_builder"
+require_relative "serializable/symbolizer"
+require_relative "serializable/sortable"
 
 module RestPack
   module Serializer
@@ -14,9 +17,9 @@ module RestPack
     @@class_map ||= {}
 
     included do
-      identifier = self.to_s.downcase.chomp('serializer')
+      identifier = self.to_s.underscore.chomp('_serializer')
       @@class_map[identifier] = self
-      @@class_map[identifier.split('::').last] = self
+      @@class_map[identifier.split('/').last] = self
     end
 
     include RestPack::Serializer::Paging
@@ -25,6 +28,7 @@ module RestPack
     include RestPack::Serializer::Attributes
     include RestPack::Serializer::Filterable
     include RestPack::Serializer::SideLoading
+    include RestPack::Serializer::Sortable
 
     class InvalidInclude < Exception; end
 
@@ -46,7 +50,7 @@ module RestPack
       add_custom_attributes(data)
       add_links(model, data)
 
-      data
+      Symbolizer.recursive_symbolize(data)
     end
 
     def custom_attributes
@@ -62,12 +66,15 @@ module RestPack
 
     def add_links(model, data)
       self.class.associations.each do |association|
-        if association.macro == :belongs_to
-          data[:links] ||= {}
-          foreign_key_value = model.send(association.foreign_key)
-          if foreign_key_value
-            data[:links][association.name.to_sym] = foreign_key_value.to_s
-          end
+        data[:links] ||= {}
+        links_value = case
+        when association.macro == :belongs_to
+          model.send(association.foreign_key).try(:to_s)
+        when association.macro.to_s.match(/has_/)
+          model.send(association.name).pluck(:id).map(&:to_s)
+        end
+        unless links_value.blank?
+          data[:links][association.name.to_sym] = links_value
         end
       end
       data
@@ -104,6 +111,13 @@ module RestPack
         (@key || self.model_class.send(:table_name)).to_sym
       end
 
+      def singular_key
+        self.key.to_s.singularize.to_sym
+      end
+
+      def plural_key
+        self.key
+      end
     end
   end
 end

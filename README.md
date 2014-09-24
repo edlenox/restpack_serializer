@@ -12,6 +12,17 @@ restpack_serializer allows you to quickly provide a set of RESTful endpoints for
 * [An overview of RestPack](http://www.slideshare.net/gavinjoyce/taming-monolithic-monsters)
 * [JSON API](http://jsonapi.org/)
 
+## Getting Started
+
+### For rails projects:
+After adding the gem `restpack_serializer` to your Gemfile, add this code to `config/initializers/restpack_serializer.rb`:
+
+```ruby
+Dir[Rails.root.join('app/serializers/**/*.rb')].each do |path|
+  require path
+end
+```
+
 ## Serialization
 
 Let's say we have an `Album` model:
@@ -46,7 +57,7 @@ end
 }
 ```
 
-`as_json` accepts an optional `context` hash parameter which can be used be your Serializers to customize their output:
+`as_json` accepts an optional `context` hash parameter which can be used by your Serializers to customize their output:
 
 ```ruby
 class AlbumSerializer
@@ -157,8 +168,10 @@ http://restpack-serializer-sample.herokuapp.com/api/v1/songs.json?page=2&page_si
             "page_count": 14,
             "previous_page": 1,
             "next_page": 3,
-            "previous_href": "/api/v1/songs?page_size=3",
-            "next_href": "/api/v1/songs?page=3&page_size=3"
+            "first_href": "/songs?page_size=3",
+            "previous_href": "/songs?page_size=3",
+            "next_href": "/songs?page=3&page_size=3",
+            "last_href": "/songs?page=14&page_size=3"
         }
     },
     "links": {
@@ -255,8 +268,10 @@ which yields:
             "page_count": 1,
             "previous_page": null,
             "next_page": null,
+            "first_href": '/albums',
             "previous_href": null,
-            "next_href": null
+            "next_href": null,
+            "last_href": '/albums'
         }
     },
     "links": {
@@ -344,6 +359,23 @@ end
 Side-loading is available when filtering:
 
  * http://restpack-serializer-sample.herokuapp.com/api/v1/albums.json?artist_ids=2,3&include=artists,songs
+
+## Sorting
+
+Sorting attributes can be defined with the `can_sort_by` option:
+
+ ```ruby
+class Account
+    include RestPack::Serializer
+    attributes :id, :application_id, :created_by, :name, :href
+
+    can_sort_by :id, :name
+end
+```
+
+ * http://restpack-serializer-sample.herokuapp.com/api/v1/albums.json?sort=id
+ * http://restpack-serializer-sample.herokuapp.com/api/v1/albums.json?sort=-name
+ * http://restpack-serializer-sample.herokuapp.com/api/v1/albums.json?sort=name,-id
 
 ## Running Tests
 
